@@ -3,6 +3,12 @@ import express from "express";
 import cors from "cors";
 
 import serviceRoutes from "./routes/service.routes.js";
+import appointmentRoutes from "./routes/appointment.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import paymentRoutes from "./routes/payment.routes.js";
+import profileRoutes from "./routes/profile.routes.js";
+import uploadRoutes from "./routes/upload.routes.js";
+import { stripeWebhook } from "./controllers/payment.controller.js";
 
 const app = express();
 
@@ -12,9 +18,16 @@ app.use(cors({
   })
 );
 
-app.use(express.json());
+app.post("/api/payments/webhook", express.raw({ type: "application/json" }), stripeWebhook);
+
+app.use(express.json({ limit: "10mb" }));
 
 app.use("/api/services", serviceRoutes);
+app.use("/api/appointments", appointmentRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/profile", profileRoutes);
+app.use("/api/upload", uploadRoutes);
 
 app.get("/", (req, res) => {
   res.send("SalonBook API is running!");
