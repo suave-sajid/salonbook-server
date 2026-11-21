@@ -1,6 +1,12 @@
 import Stripe from "stripe";
 import { ObjectId } from "mongodb";
 import { getDB } from "../config/db.js";
+import {
+  isPaidCheckoutSession,
+  shouldProcessCheckoutEvent,
+  STRIPE_CURRENCY,
+  toMinorUnits,
+} from "../utils/payment.js";
 
 const getStripe = () => {
   if (!process.env.STRIPE_SECRET_KEY) throw new Error("STRIPE_SECRET_KEY is not configured");
@@ -18,8 +24,16 @@ export const createCheckoutSession = async (req, res) => {
     });
     if (!appointment) return res.status(404).json({ success: false, message: "Appointment not found" });
     if (appointment.status !== "confirmed") return res.status(400).json({ success: false, message: "Only confirmed appointments can be paid" });
-    if (appointment.paymentStatus === "paid") return res.status(400).json({ success: false, message: "Appointment is already paid" });
-
+    if (appointment.paymentStatus !== "unpaid") {
+      return res.status(400).json({
+        success: false,
+        message: "Only unpaid appointments can be paid",
+      });
+    }
+    const amount = toMinorUnits(appointment.servicePrice);
+    if (amount === null) {
+      return res.status(400).json({ success: false, message: "Appointment price is invalid" });
+    }
     const service = await db.collection("services").findOne({ _id: appointment.serviceId });
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
@@ -27,8 +41,8 @@ export const createCheckoutSession = async (req, res) => {
       line_items: [{
         quantity: 1,
         price_data: {
-          currency: "bdt",
-          unit_amount: Math.round(Number(appointment.servicePrice) * 100),
+          currency: STRIPE_CURRENCY,
+          unit_amount: amount,
           product_data: { name: service?.serviceName || "SalonBook Appointment" },
         },
       }],
@@ -51,19 +65,27 @@ export const stripeWebhook = async (req, res) => {
   } catch (error) {
     return res.status(400).json({ success: false, message: "Invalid Stripe webhook signature" });
   }
-  if (event.type !== "checkout.session.completed") return res.status(200).json({ received: true });
+  if (!shouldProcessCheckoutEvent(event.type)) {
+    return res.status(200).json({ received: true });
+  }
 
   const session = event.data.object;
+  if (
+    event.type === "checkout.session.completed"
+    && session.payment_status !== "paid"
+  ) {
+    return res.status(200).json({ received: true, paymentPending: true });
+  }
   const appointmentId = session.metadata?.appointmentId;
   const customerId = session.metadata?.customerId;
   if (
     session.mode !== "payment"
-    || session.payment_status !== "paid"
     || !appointmentId
     || !ObjectId.isValid(appointmentId)
     || !customerId
+    || !session.id
   ) {
-    return res.status(400).json({ success: false, message: "Invalid or unpaid checkout session" });
+    return res.status(400).json({ success: false, message: "Invalid checkout session" });
   }
 
   const db = getDB();
@@ -71,6 +93,10 @@ export const stripeWebhook = async (req, res) => {
   if (!appointment) return res.status(404).json({ success: false, message: "Appointment not found" });
   if (String(appointment.customerId) !== String(customerId)) {
     return res.status(400).json({ success: false, message: "Checkout customer does not match appointment" });
+  }
+  const expectedAmount = toMinorUnits(appointment.servicePrice);
+  if (!isPaidCheckoutSession(session, expectedAmount)) {
+    return res.status(400).json({ success: false, message: "Checkout payment does not match the appointment" });
   }
 
   await db.collection("appointments").updateOne(
@@ -83,8 +109,8 @@ export const stripeWebhook = async (req, res) => {
       $setOnInsert: {
         appointmentId: appointment._id,
         customerId,
-        amount: session.amount_total ? session.amount_total / 100 : Number(appointment.servicePrice),
-        currency: (session.currency || "usd").toLower(),
+        amount: session.amount_total / 100,
+        currency: session.currency,
         stripeSessionId: session.id,
         status: "paid",
         createdAt: new Date(),
