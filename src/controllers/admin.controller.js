@@ -55,14 +55,29 @@ export const getTransactions = async (req, res) => {
     db.collection("user").find({ _id: { $in: customerIds } }).toArray(),
     db.collection("user").find({ _id: { $in: customerIds.map((id) => ObjectId.isValid(id) ? new ObjectId(id) : null).filter(Boolean) } }).toArray(),
   ]);
+  const serviceIds = [...new Set(
+    appointments
+      .map((item) => String(item.serviceId))
+      .filter((id) => ObjectId.isValid(id)),
+  )].map((id) => new ObjectId(id));
+  const services = await db.collection("services").find({ _id: { $in: serviceIds } }).toArray();
   const appointmentMap = new Map(appointments.map((item) => [String(item._id), item]));
   const userMap = new Map([...stringUsers, ...objectUsers].map((item) => [String(item._id), item]));
+  const serviceMap = new Map(services.map((item) => [String(item._id), item]));
   res.status(200).json({
     success: true,
-    data: transactions.map((item) => ({
-      ...item,
-      appointment: appointmentMap.get(String(item.appointmentId)) || null,
-      customer: userMap.get(String(item.customerId)) || null,
-    })),
+    data: transactions.map((item) => {
+      const appointment = appointmentMap.get(String(item.appointmentId));
+      return {
+        ...item,
+        appointment: appointment
+          ? {
+            ...appointment,
+            service: serviceMap.get(String(appointment.serviceId)) || null,
+          }
+          : null,
+        customer: userMap.get(String(item.customerId)) || null,
+      };
+    }),
   });
 };
