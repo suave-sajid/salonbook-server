@@ -40,6 +40,28 @@ The API runs on `http://localhost:5000` by default.
 - `IMGBB_API_KEY`
 - `PORT`
 
+## Local Stripe Webhook Testing
+
+Use Stripe test mode and install the [Stripe CLI](https://docs.stripe.com/stripe-cli) before testing local webhooks. Keep the CLI running while your API is running:
+
+```bash
+stripe login
+stripe listen --forward-to localhost:5000/api/payments/webhook
+```
+
+The CLI prints a webhook signing secret beginning with `whsec_`. Put that value in the server's local `.env` as `STRIPE_WEBHOOK_SECRET`, then restart the API. This is different from `STRIPE_SECRET_KEY`; never commit either secret or paste it into chat.
+
+To confirm the endpoint rejects unsigned requests, run this in another PowerShell terminal:
+
+```powershell
+curl.exe -i -X POST http://localhost:5000/api/payments/webhook `
+  -H "Content-Type: application/json" `
+  -H "Stripe-Signature: invalid" `
+  --data "{}"
+```
+
+The expected response is `400 Invalid Stripe webhook signature`. For a successful end-to-end test, create and confirm an appointment in SalonBook, use Pay Now, and complete Checkout with Stripe test payment details. The API updates payment state only after receiving the signed webhook; the success redirect is not proof of payment.
+
 ## Live and Repository Links
 
 - Live API: Add the deployed URL here
