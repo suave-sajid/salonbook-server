@@ -46,7 +46,7 @@ Use Stripe test mode and install the [Stripe CLI](https://docs.stripe.com/stripe
 
 ```bash
 stripe login
-stripe listen --events checkout.session.completed,checkout.session.async_payment_succeeded --forward-to http://localhost:5000/api/payments/webhook
+stripe listen --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed --forward-to http://localhost:5000/api/payments/webhook
 ```
 
 The CLI prints a webhook signing secret beginning with `whsec_`. Put that value in the server's local `.env` as `STRIPE_WEBHOOK_SECRET`, then restart the API. This is different from `STRIPE_SECRET_KEY`; never commit either secret or paste it into chat.

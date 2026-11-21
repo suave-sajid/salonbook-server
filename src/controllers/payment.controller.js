@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { ObjectId } from "mongodb";
 import { getDB } from "../config/db.js";
 import {
+  isFailedCheckoutSession,
   isPaidCheckoutSession,
   shouldProcessCheckoutEvent,
   STRIPE_CURRENCY,
@@ -95,6 +96,27 @@ export const stripeWebhook = async (req, res) => {
     return res.status(400).json({ success: false, message: "Checkout customer does not match appointment" });
   }
   const expectedAmount = toMinorUnits(appointment.servicePrice);
+  if (event.type === "checkout.session.async_payment_failed") {
+    if (!isFailedCheckoutSession(session, expectedAmount)) {
+      return res.status(400).json({ success: false, message: "Failed checkout does not match the appointment" });
+    }
+    await db.collection("transactions").updateOne(
+      { stripeSessionId: session.id },
+      {
+        $setOnInsert: {
+          appointmentId: appointment._id,
+          customerId,
+          amount: session.amount_total / 100,
+          currency: session.currency,
+          stripeSessionId: session.id,
+          status: "failed",
+          createdAt: new Date(),
+        },
+      },
+      { upsert: true },
+    );
+    return res.status(200).json({ received: true });
+  }
   if (!isPaidCheckoutSession(session, expectedAmount)) {
     return res.status(400).json({ success: false, message: "Checkout payment does not match the appointment" });
   }
@@ -106,15 +128,15 @@ export const stripeWebhook = async (req, res) => {
   await db.collection("transactions").updateOne(
     { stripeSessionId: session.id },
     {
-      $setOnInsert: {
+      $set: {
         appointmentId: appointment._id,
         customerId,
         amount: session.amount_total / 100,
         currency: session.currency,
         stripeSessionId: session.id,
         status: "paid",
-        createdAt: new Date(),
       },
+      $setOnInsert: { createdAt: new Date() },
     },
     { upsert: true },
   );
