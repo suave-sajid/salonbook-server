@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { getDB } from "../config/db.js";
+import { getAllowedPreviousStatuses } from "../utils/appointment-status.js";
 
 const asObjectId = (value) => ObjectId.isValid(value) ? new ObjectId(value) : null;
 
@@ -91,17 +92,24 @@ export const updateAppointmentStatus = async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   if (!ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid appointment ID" });
-  if (!["confirmed", "cancelled"].includes(status)) return res.status(400).json({ success: false, message: "Invalid appointment status" });
+  const allowedPreviousStatuses = getAllowedPreviousStatuses(status);
+  if (!allowedPreviousStatuses.length) return res.status(400).json({ success: false, message: "Invalid appointment status" });
   const db = getDB();
-  const appointment = await db.collection("appointments").findOne({ _id: new ObjectId(id) });
-  if (!appointment) return res.status(404).json({ success: false, message: "Appointment not found" });
-  if (appointment.status !== "pending") {
-    if (status === "cancelled" && appointment.status === "confirmed") {
-      await db.collection("appointments").updateOne({ _id: appointment._id }, { $set: { status: "cancelled" } });
-      return res.status(200).json({ success: true, message: "Appointment cancelled" });
-    }
-    return res.status(400).json({ success: false, message: "Only pending appointments can be confirmed; only pending or confirmed appointments can be cancelled" });
+  const appointmentId = new ObjectId(id);
+  const result = await db.collection("appointments").updateOne(
+    { _id: appointmentId, status: { $in: allowedPreviousStatuses } },
+    { $set: { status } },
+  );
+  if (result.matchedCount) {
+    return res.status(200).json({ success: true, message: `Appointment ${status}` });
   }
-  await db.collection("appointments").updateOne({ _id: appointment._id }, { $set: { status } });
-  res.status(200).json({ success: true, message: `Appointment ${status}` });
+
+  const appointment = await db.collection("appointments").findOne({ _id: appointmentId });
+  if (!appointment) return res.status(404).json({ success: false, message: "Appointment not found" });
+  return res.status(400).json({
+    success: false,
+    message: status === "confirmed"
+      ? "Only pending appointments can be confirmed"
+      : "Only pending or confirmed appointments can be cancelled",
+  });
 };
