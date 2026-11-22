@@ -38,7 +38,7 @@ The API runs on `http://localhost:5000` by default.
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `IMGBB_API_KEY`
-- `PORT`
+- `PORT` (optional; local development only)
 
 ## Local Stripe Webhook Testing
 
@@ -61,6 +61,35 @@ curl.exe -i -X POST http://localhost:5000/api/payments/webhook `
 ```
 
 The expected response is `400 Invalid Stripe webhook signature`. For a successful end-to-end test, create and confirm an appointment in SalonBook, use Pay Now, and complete Checkout with Stripe test payment details. The API updates payment state only after receiving the signed webhook; the success redirect is not proof of payment.
+
+## Deploy to Vercel
+
+The Express app is exported from `src/app.js`, which connects to MongoDB before handling requests. From this directory, link and deploy it with the Vercel CLI:
+
+```powershell
+npx vercel@latest login
+npx vercel@latest link
+```
+
+Add the required environment variables to the Vercel project's Production environment. Use the CLI to add them one at a time; it prompts for each value:
+
+```powershell
+npx vercel@latest env add MONGODB_URI --environment production
+npx vercel@latest env add DB_NAME --environment production
+npx vercel@latest env add BETTER_AUTH_URL --environment production
+npx vercel@latest env add CLIENT_URL --environment production
+npx vercel@latest env add STRIPE_SECRET_KEY --environment production
+npx vercel@latest env add STRIPE_WEBHOOK_SECRET --environment production
+npx vercel@latest env add IMGBB_API_KEY --environment production
+```
+
+Keep credentials secret and out of source control. Then deploy and check `https://<deployment-url>/api/health`:
+
+```powershell
+npx vercel@latest --prod
+```
+
+Configure the Stripe production webhook at `https://<deployment-url>/api/payments/webhook` for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `checkout.session.async_payment_failed`. Store its signing secret as `STRIPE_WEBHOOK_SECRET` in Vercel and redeploy if it was added after the initial deployment.
 
 ## Live and Repository Links
 

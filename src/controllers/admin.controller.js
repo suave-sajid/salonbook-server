@@ -28,8 +28,8 @@ export const getUsers = async (req, res) => {
   const users = await getDB().collection("user").find({ role: { $ne: "admin" } }).toArray();
   res.status(200).json({
     success: true,
-    data: users.map(({ _id, name, email, image, role, isBlocked, phoneNumber, createdAt }) => ({
-      _id, name, email, image, role, isBlocked: Boolean(isBlocked), phoneNumber, createdAt,
+    data: users.map(({ _id, name, email, image, role, isBlocked, phoneNumber, gender, dateOfBirth, city, country, createdAt }) => ({
+      _id, name, email, image, role, isBlocked: Boolean(isBlocked), phoneNumber, gender, dateOfBirth, city, country, createdAt,
     })),
   });
 };

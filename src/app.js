@@ -1,6 +1,7 @@
 
 import express from "express";
 import cors from "cors";
+import { connectDB } from "./config/db.js";
 
 import serviceRoutes from "./routes/service.routes.js";
 import appointmentRoutes from "./routes/appointment.routes.js";
@@ -9,6 +10,8 @@ import paymentRoutes from "./routes/payment.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import { stripeWebhook } from "./controllers/payment.controller.js";
+
+await connectDB();
 
 const app = express();
 
