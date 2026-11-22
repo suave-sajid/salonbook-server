@@ -4,9 +4,18 @@ import { verifyToken } from "../middleware/verifyToken.js";
 import { verifyRole } from "../middleware/verifyRole.js";
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, callback) => {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) {
+      return callback(new Error("Unsupported image type"));
+    }
+    callback(null, true);
+  },
+});
 
-router.post("/image", verifyToken, upload.single("image"), async (req, res) => {
+router.post("/image", verifyToken, verifyRole("admin"), upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: "Image file is required" });
     if (!process.env.IMGBB_API_KEY) return res.status(503).json({ success: false, message: "Image hosting is not configured" });

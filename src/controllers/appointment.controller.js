@@ -16,6 +16,9 @@ export const createAppointment = async (req, res) => {
 
     const date = new Date(`${appointmentDate}T00:00:00`);
     if (Number.isNaN(date.getTime())) return res.status(400).json({ success: false, message: "Invalid appointment date" });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (date < today) return res.status(400).json({ success: false, message: "Appointment date cannot be in the past" });
 
     const duplicate = await db.collection("appointments").findOne({
       appointmentDate,
