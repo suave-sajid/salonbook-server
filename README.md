@@ -93,6 +93,6 @@ Configure the Stripe production webhook at `https://<deployment-url>/api/payment
 
 ## Live and Repository Links
 
-- Live API: Add the deployed URL here
-- Server repository: Add the server GitHub repository URL here
-- Client repository: Add the client GitHub repository URL here
+- Live API: https://saloonbook-server.vercel.app/
+- Server repository: https://github.com/suave-sajid/salonbook-server
+- Client repository: https://github.com/suave-sajid/saloonbook-client
